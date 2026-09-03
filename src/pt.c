@@ -1,8 +1,10 @@
+#include <stddef.h>
+
 #include "os.h"
-#include "SPBufferset.h"
 
 #define OFFSET 12
 #define VALID_BIT 0b1
+#define ADDRESS_MASK (~0xfffULL)
 #define LEVEL_CNT 5
 #define CREATE_ENTRY 1
 
@@ -11,21 +13,22 @@ unsigned int get_level(uint64_t vpn, int level) {
 }
 
 uint64_t* get_last_level(uint64_t pt, uint64_t vpn, int is_create) {
-    uint64_t curr_node = pt, *curr_virt;
+    uint64_t curr_node = pt << OFFSET, *curr_virt;
     for (int i = 0; i < LEVEL_CNT; i++) {
+        unsigned int index = get_level(vpn, i);
         curr_virt = phys_to_virt(curr_node);
-        if (!(curr_virt[get_level(vpn, i)] & VALID_BIT)) {
+        if (!(curr_virt[index] & VALID_BIT)) {
             if (is_create == CREATE_ENTRY) {
-                curr_virt[get_level(vpn, i)] = (alloc_page_frame() << OFFSET) | VALID_BIT;
-                curr_node = curr_virt[get_level(vpn, i)];
+                curr_virt[index] = (alloc_page_frame() << OFFSET) | VALID_BIT;
+                curr_node = curr_virt[index] & ADDRESS_MASK;
             }
             else
                 return NULL;
         }
         else
-            curr_node = curr_virt[get_level(vpn, i)];
+            curr_node = curr_virt[index] & ADDRESS_MASK;
     }
-    return !(curr_node & VALID_BIT) ? NULL : curr_virt;
+    return curr_virt;
 }
 
 void page_table_update(uint64_t pt, uint64_t vpn, uint64_t ppn) {
